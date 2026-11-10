@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Le labo de la rouille</title>
+<meta name="description" content="Simulateur de rouille pour la classe de 6e année : eau, oxygène, sel, température et temps.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%94%A9%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Fiche de laboratoire : éditorial / industriel. Deux couleurs : encre + rouille. */
+:root{
+  --paper:#F3F2EE; --ink:#151515; --rust:#B4501E;
+  --muted:#5E5B55; --line:#151515; --hair:#CFCCC4;
+  --panel:#F3F2EE; --glass:#F3F2EE; --glass-line:#151515; --steel:#151515;
+  --water:#3A78A8;
+  --serif:"Young Serif",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:72px;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#141413; --ink:#ECEAE4; --rust:#E2783F; --muted:#A39F96; --line:#ECEAE4; --hair:#3A3935;
+    --panel:#141413; --glass:#141413; --glass-line:#ECEAE4; --steel:#ECEAE4; --water:#6AA6D6; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141413; --ink:#ECEAE4; --rust:#E2783F; --muted:#A39F96; --line:#ECEAE4; --hair:#3A3935;
+  --panel:#141413; --glass:#141413; --glass-line:#ECEAE4; --steel:#ECEAE4; --water:#6AA6D6; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:1rem;line-height:1.55;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.mono{font-family:var(--mono)}
+.wrap{max-width:1240px;margin:0 auto;padding:0 var(--s4)}
+
+/* ---- En-tête de fiche ---- */
+.mast{padding:var(--s5) 0 var(--s5);border-bottom:2px solid var(--line)}
+.kicker{display:flex;justify-content:space-between;gap:var(--s3);flex-wrap:wrap;font-family:var(--mono);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-bottom:var(--s3);border-bottom:1px solid var(--line);margin-bottom:var(--s5)}
+h1{font-family:var(--serif);font-weight:400;font-size:clamp(2.6rem,11vw,6.5rem);line-height:.92;letter-spacing:-.02em;margin:0 0 var(--s4)}
+h1 em{font-style:normal;color:var(--rust)}
+.lede{max-width:46ch;margin:0 0 var(--s5);font-size:1.0625rem;color:var(--muted)}
+.equation{font-family:var(--serif);font-size:clamp(1.25rem,4.6vw,1.75rem);margin:0;line-height:1.3}
+.equation .op{color:var(--muted);padding:0 .2em}
+.chip{transition:opacity .2s,color .2s}
+.chip.off{opacity:.35;text-decoration:line-through;text-decoration-thickness:2px}
+.chip.result{color:var(--rust)}
+
+/* ---- Paillasse : scène + réglages ---- */
+.lab{display:grid;grid-template-columns:1fr}
+.stage{margin:0;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);border-bottom:1px solid var(--line);padding:var(--s3) 0 var(--s3);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s3);align-items:end}
+.scene{display:block;width:100%;height:auto;max-height:34vh;max-width:100%}
+.readout{display:flex;flex-direction:column;align-items:flex-end;gap:var(--s1);min-width:7.5rem;padding-bottom:var(--s2)}
+.readout .big{font-family:var(--mono);font-weight:500;font-size:clamp(2.4rem,10vw,4.5rem);line-height:1;color:var(--rust);font-variant-numeric:tabular-nums;letter-spacing:-.03em;white-space:nowrap}
+.readout .lbl{font-size:.8125rem;color:var(--muted);text-align:right;max-width:16ch;line-height:1.35}
+.bar{width:100%;height:4px;background:var(--hair);margin-top:var(--s2)}
+.bar i{display:block;height:100%;width:0;background:var(--rust);transition:width .15s linear}
+
+.sec{padding:var(--s5) 0 var(--s6);border-bottom:1px solid var(--line)}
+.sec h2,.sec summary{font-family:var(--serif);font-weight:400;font-size:1.625rem;line-height:1.15;margin:0 0 var(--s5);display:flex;gap:var(--s3);align-items:baseline}
+.num{font-family:var(--mono);font-size:.8125rem;color:var(--rust);letter-spacing:.04em}
+.note{font-size:.875rem;color:var(--muted);margin:calc(-1 * var(--s3)) 0 var(--s4);max-width:48ch}
+
+.ctrl{margin:0 0 var(--s5)}
+.ctrl:last-child{margin-bottom:0}
+.ctrl label{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3);font-weight:600;font-size:1rem}
+.ctrl output{font-family:var(--mono);font-weight:400;font-size:.875rem;color:var(--rust);text-align:right}
+.hint{display:flex;justify-content:space-between;gap:var(--s3);font-family:var(--mono);font-size:.6875rem;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:36px;margin:var(--s1) 0 0;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--ink)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;margin-top:-9px;background:var(--rust);border:2px solid var(--ink);border-radius:0}
+input[type=range]::-moz-range-track{height:2px;background:var(--ink)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;background:var(--rust);border:2px solid var(--ink);border-radius:0}
+:focus-visible{outline:2px solid var(--rust);outline-offset:3px}
+
+.timeRow{display:flex;flex-direction:column;gap:var(--s4)}
+button{font:inherit;cursor:pointer;color:inherit;background:none;border:0;padding:0}
+#play{align-self:flex-start;font-family:var(--mono);font-size:.8125rem;letter-spacing:.06em;text-transform:uppercase;background:var(--ink);color:var(--paper);padding:var(--s3) var(--s5);border:2px solid var(--ink)}
+#play:hover{background:var(--rust);border-color:var(--rust)}
+
+.scen{list-style:none;margin:0;padding:0;border-top:1px solid var(--hair)}
+.scen li{border-bottom:1px solid var(--hair)}
+.scen button{width:100%;text-align:left;display:flex;justify-content:space-between;gap:var(--s3);padding:var(--s3) 0;font-size:1rem}
+.scen button span{font-family:var(--mono);font-size:.75rem;color:var(--muted)}
+.scen button:hover{color:var(--rust)}
+.scen button:hover span{color:var(--rust)}
+
+details.sec summary{cursor:pointer;list-style:none;margin-bottom:0}
+details.sec summary::-webkit-details-marker{display:none}
+details.sec summary::after{content:"+";font-family:var(--mono);margin-left:auto;color:var(--rust)}
+details.sec[open] summary::after{content:"−"}
+details.sec[open] summary{margin-bottom:var(--s5)}
+.prot{display:flex;flex-direction:column;border-top:1px solid var(--hair)}
+.prot label{display:grid;grid-template-columns:1.5rem 1fr;gap:var(--s3);align-items:baseline;padding:var(--s3) 0 var(--s3) var(--s3);border-bottom:1px solid var(--hair);border-left:3px solid transparent;cursor:pointer}
+.prot label b{font-family:var(--mono);font-weight:500;font-size:.8125rem;color:var(--muted)}
+.prot input{position:absolute;opacity:0;width:1px;height:1px}
+.prot label:has(input:checked){border-left-color:var(--rust)}
+.prot label:has(input:checked) b,.prot label:has(input:checked) span{color:var(--rust)}
+.prot label:has(input:focus-visible){outline:2px solid var(--rust);outline-offset:-2px}
+.scratch[hidden]{display:none}
+.scratch{margin-top:var(--s4);display:flex;gap:var(--s2);align-items:center;font-size:.9375rem}
+.scratch input{accent-color:var(--rust);width:18px;height:18px}
+
+/* ---- Résultats ---- */
+.results{display:grid;grid-template-columns:1fr;border-bottom:2px solid var(--line)}
+.results h2{font-family:var(--serif);font-weight:400;font-size:1.625rem;line-height:1.15;margin:0 0 var(--s4);display:flex;gap:var(--s3);align-items:baseline}
+.notes{padding:var(--s6) 0;border-bottom:1px solid var(--line)}
+#msgs{list-style:none;margin:0;padding:0;counter-reset:n}
+#msgs li{counter-increment:n;display:grid;grid-template-columns:2rem 1fr;gap:var(--s2);padding:var(--s3) 0;border-top:1px solid var(--hair);font-size:1.0625rem;max-width:58ch}
+#msgs li::before{content:counter(n,decimal-leading-zero);font-family:var(--mono);font-size:.75rem;color:var(--rust);padding-top:.3em}
+.graph{padding:var(--s6) 0}
+.chartWrap{overflow-x:auto;color:var(--ink)}
+.chartWrap svg{display:block;width:100%;height:auto;min-width:300px}
+.legend{display:flex;gap:var(--s4);flex-wrap:wrap;font-family:var(--mono);font-size:.75rem;color:var(--muted);margin-top:var(--s3)}
+.legend b{display:inline-block;width:20px;height:2px;vertical-align:middle;margin-right:var(--s2)}
+footer{padding:var(--s5) 0 var(--s7);font-family:var(--mono);font-size:.75rem;color:var(--muted);max-width:70ch;line-height:1.6}
+
+/* ---- Grand écran : la scène reste en place à gauche, le carnet défile à droite ---- */
+@media (min-width:900px){
+  .wrap{padding:0 var(--s6)}
+  .mast{display:grid;grid-template-columns:7fr 5fr;column-gap:var(--s7);align-items:end;padding-bottom:var(--s6)}
+  .kicker{grid-column:1 / -1}
+  h1{margin:0}
+  .mast .side{padding-bottom:var(--s2)}
+  .lab{grid-template-columns:7fr 5fr;column-gap:var(--s7);align-items:start}
+  .stage{top:calc(env(safe-area-inset-top,0px) + var(--s5));border-bottom:0;padding:var(--s6) 0;grid-template-columns:1fr;gap:var(--s4)}
+  .scene{max-height:none;max-width:560px}
+  .readout{flex-direction:row;align-items:baseline;justify-content:flex-start;gap:var(--s4);border-top:1px solid var(--line);padding-top:var(--s4)}
+  .readout .lbl{text-align:left;max-width:22ch;font-size:.9375rem}
+  .readout .bar{display:none}
+  .panel{border-left:1px solid var(--line);padding-left:var(--s6)}
+  .results{grid-template-columns:5fr 7fr;column-gap:var(--s7);border-top:2px solid var(--line)}
+  .notes{border-bottom:0;padding-right:var(--s2)}
+  .graph{border-left:1px solid var(--line);padding-left:var(--s6)}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="kicker"><span>Science et technologie · 6e année</span><span>Fiche d’expérience · Sauvez le métal !</span></div>
+    <h1>Le labo<br>de la <em>rouille</em></h1>
+    <div class="side">
+      <p class="lede">Un clou en fer est posé dans un bocal. Change l’eau, l’air, le sel et la température, puis fais passer le temps et observe ce qui arrive au métal.</p>
+      <p class="equation" aria-live="polite"><span class="chip on" id="cFer">fer</span><span class="op">+</span><span class="chip" id="cEau">eau</span><span class="op">+</span><span class="chip" id="cOxy">oxygène</span><span class="op">→</span><span class="chip result">rouille</span></p>
+    </div>
+  </header>
+
+  <main class="lab">
+    <figure class="stage">
+      <svg id="scene" class="scene" viewBox="0 0 420 430" role="img" aria-label="Clou en fer dans un bocal">
+        <defs>
+          <linearGradient id="steelG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#C9D2D8"/><stop offset=".45" stop-color="#8C99A3"/><stop offset="1" stop-color="#5B6873"/>
+          </linearGradient>
+          <linearGradient id="paintG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#5C9BD1"/><stop offset="1" stop-color="#245A8C"/>
+          </linearGradient>
+          <linearGradient id="oilG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#FFE39A" stop-opacity=".9"/><stop offset="1" stop-color="#C99A2E" stop-opacity=".35"/>
+          </linearGradient>
+          <linearGradient id="waterG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#7DB8E0" stop-opacity=".55"/><stop offset="1" stop-color="#2E7DB5" stop-opacity=".55"/>
+          </linearGradient>
+          <clipPath id="nailClip"><path id="nailShapeClip" d="M-6 -22 Q-14 0 -6 22 L8 22 Q12 0 8 -22 Z M8 -8 L230 -8 L268 0 L230 8 L8 8 Z"/></clipPath>
+          <clipPath id="jarClip"><path d="M92 92 h236 v300 q0 22 -22 22 h-192 q-22 0 -22 -22 z"/></clipPath>
+        </defs>
+
+        <!-- abri -->
+        <g id="shelter" opacity="0">
+          <path d="M60 58 L210 8 L360 58" fill="none" stroke="var(--ink)" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/>
+        </g>
+
+        <!-- pile -->
+        <g id="battery" opacity="0">
+          <rect x="336" y="12" width="70" height="38" rx="2" fill="var(--ink)" stroke="var(--ink)" stroke-width="2"/>
+          <rect x="406" y="23" width="6" height="16" rx="2" fill="var(--ink)"/>
+          <text id="batSign" x="371" y="39" text-anchor="middle" font-family="IBM Plex Mono,ui-monospace,monospace" font-size="24" font-weight="700" fill="var(--paper)">−</text>
+          <path id="bolt" d="M360 0 l-8 12 h7 l-5 10 l12 -14 h-7 l5 -8z" fill="#F5C518" opacity="0"/>
+          <path d="M350 50 C 330 90, 240 70, 205 120" fill="none" stroke="#C0392B" stroke-width="3"/>
+        </g>
+
+        <!-- bocal -->
+        <g clip-path="url(#jarClip)">
+          <rect x="92" y="92" width="236" height="322" fill="var(--glass)"/>
+          <rect id="water" x="92" y="414" width="236" height="0" fill="url(#waterG)"/>
+          <g id="saltLayer"></g>
+          <g id="flakes"></g>
+          <g id="oxygen"></g>
+        </g>
+
+        <!-- clou -->
+        <g id="nail" transform="translate(150 118) rotate(58) scale(1.18)">
+          <path id="nailBody" d="M-6 -22 Q-14 0 -6 22 L8 22 Q12 0 8 -22 Z M8 -8 L230 -8 L268 0 L230 8 L8 8 Z" fill="url(#steelG)" stroke="#3E4A54" stroke-width="1.5"/>
+          <g clip-path="url(#nailClip)">
+            <rect id="rustTint" x="-30" y="-40" width="330" height="80" fill="#8E3B12" opacity="0"/>
+            <g id="rustSpots"></g>
+            <path id="oilSheen" d="" fill="url(#oilG)" opacity="0"/>
+            <line id="scratchLine" x1="60" y1="-4" x2="190" y2="5" stroke="#B9C3CA" stroke-width="2.5" opacity="0"/>
+          </g>
+          <g id="zinc" opacity="0">
+            <rect id="zincRect" x="150" y="-20" width="44" height="40" rx="5" fill="#AEB8C0" stroke="#5B6873" stroke-width="2"/>
+            <circle cx="172" cy="0" r="4" fill="#5B6873"/>
+            <g id="zincPowder"></g>
+          </g>
+          <g id="drops"></g>
+        </g>
+
+        <!-- verre par-dessus -->
+        <path d="M92 92 h236 v300 q0 22 -22 22 h-192 q-22 0 -22 -22 z" fill="none" stroke="var(--glass-line)" stroke-width="4"/>
+        <rect x="84" y="80" width="252" height="14" rx="5" fill="none" stroke="var(--glass-line)" stroke-width="4"/>
+        <rect id="lid" x="80" y="68" width="260" height="16" rx="6" fill="var(--steel)" opacity="0"/>
+
+        <!-- thermomètre -->
+        <g transform="translate(30 150)">
+          <rect x="-7" y="0" width="14" height="190" rx="7" fill="var(--panel)" stroke="var(--glass-line)" stroke-width="3"/>
+          <circle cx="0" cy="200" r="14" fill="var(--rust)" stroke="var(--glass-line)" stroke-width="3"/>
+          <rect id="mercury" x="-3" y="100" width="6" height="100" fill="var(--rust)"/>
+          <text id="tempTxt" x="0" y="236" text-anchor="middle" font-family="IBM Plex Mono,ui-monospace,monospace" font-size="14" fill="var(--ink)">20 °C</text>
+        </g>
+      </svg>
+      <figcaption class="readout"><span class="big" id="pct">0 %</span><span class="lbl" id="pctLbl">de rouille : le clou est neuf</span><span class="bar" aria-hidden="true"><i id="barFill"></i></span></figcaption>
+    </figure>
+
+    <div class="panel">
+      <section class="sec">
+        <h2><span class="num">01</span>Les conditions</h2>
+        <div class="ctrl">
+          <label for="w">Eau <output id="wOut"></output></label>
+          <input id="w" type="range" min="0" max="100" value="55">
+          <div class="hint"><span>Très sec</span><span>Plongé dans l’eau</span></div>
+        </div>
+        <div class="ctrl">
+          <label for="o">Oxygène (air) <output id="oOut"></output></label>
+          <input id="o" type="range" min="0" max="100" value="100">
+          <div class="hint"><span>Bocal sans air</span><span>Air libre</span></div>
+        </div>
+        <div class="ctrl">
+          <label for="s">Sel <output id="sOut"></output></label>
+          <input id="s" type="range" min="0" max="100" value="0">
+          <div class="hint"><span>Aucun</span><span>Eau de mer, sel de déglaçage</span></div>
+        </div>
+        <div class="ctrl">
+          <label for="T">Température <output id="TOut"></output></label>
+          <input id="T" type="range" min="-15" max="40" value="20">
+          <div class="hint"><span>−15 °C</span><span>40 °C</span></div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2><span class="num">02</span>Le temps</h2>
+        <div class="ctrl timeRow">
+          <div>
+            <label for="t">Temps écoulé <output id="tOut"></output></label>
+            <input id="t" type="range" min="0" max="36" step="0.25" value="0">
+            <div class="hint"><span>Aujourd’hui</span><span>3 ans</span></div>
+          </div>
+          <button id="play" type="button">Faire passer le temps</button>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2><span class="num">03</span>Des situations à essayer</h2>
+        <p class="note">Les réglages changent et le temps revient à aujourd’hui.</p>
+        <ul class="scen">
+          <li><button data-sc="velo" type="button">Vélo dehors l’hiver<span>sel, froid</span></button></li>
+          <li><button data-sc="mer" type="button">Bateau en mer<span>eau salée</span></button></li>
+          <li><button data-sc="desert" type="button">Désert très sec<span>chaud, sans eau</span></button></li>
+          <li><button data-sc="bouillie" type="button">Eau bouillie, bocal fermé<span>sans air</span></button></li>
+          <li><button data-sc="maison" type="button">Dans la maison<span>sec, tiède</span></button></li>
+        </ul>
+      </section>
+
+      <details class="sec" id="protBox">
+        <summary><span class="num">04</span>Tester une protection</summary>
+        <p class="note" style="margin-top:0">Ce sont les solutions A à F du cahier « Sauvez le métal ! ». Ouvre cette partie après l’activité si tu veux garder la surprise.</p>
+        <div class="prot" role="radiogroup" aria-label="Protection">
+          <label><input type="radio" name="p" value="none" checked><b>·</b><span>Aucune protection</span></label>
+          <label><input type="radio" name="p" value="paint"><b>A</b><span>Peindre l’objet</span></label>
+          <label><input type="radio" name="p" value="oil"><b>B</b><span>Enduire l’objet d’huile</span></label>
+          <label><input type="radio" name="p" value="zinc"><b>C</b><span>Visser un bloc de zinc</span></label>
+          <label><input type="radio" name="p" value="neg"><b>D</b><span>Brancher sur la borne − d’une pile</span></label>
+          <label><input type="radio" name="p" value="abri"><b>E</b><span>Mettre l’objet à l’abri</span></label>
+          <label><input type="radio" name="p" value="pos"><b>F</b><span>Brancher sur la borne + d’une pile</span></label>
+        </div>
+        <label class="scratch" id="scratchRow" hidden><input type="checkbox" id="scratch"> La peinture est égratignée</label>
+      </details>
+    </div>
+  </main>
+
+  <section class="results">
+    <div class="notes">
+      <h2><span class="num">05</span>Ce qui se passe</h2>
+      <ul id="msgs"><li>Le clou est neuf et brillant. Change les conditions, puis fais passer le temps pour voir s’il rouille.</li></ul>
+      <noscript><p>Le labo a besoin de JavaScript pour fonctionner. Active-le dans ton navigateur, puis recharge la page.</p></noscript>
+    </div>
+    <div class="graph">
+      <h2><span class="num">06</span>La rouille au fil du temps</h2>
+      <div class="chartWrap"><svg id="chart" viewBox="0 0 360 190" role="img" aria-label="Courbe de la rouille selon le temps"><text x="180" y="100" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="12" fill="currentColor" opacity=".6">La courbe de rouille s’affiche ici.</text></svg></div>
+      <div class="legend"><span><b style="background:var(--rust)"></b>Avec tes réglages</span><span id="legGhost" hidden><b style="background:var(--muted)"></b>Sans protection</span></div>
+    </div>
+  </section>
+
+  <footer>Modèle simplifié pour la classe : il montre ce qui accélère ou ralentit la rouille, pas des durées exactes.</footer>
+</div>
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const ui={w:$('w'),o:$('o'),s:$('s'),T:$('T'),t:$('t')};
+  const NS='http://www.w3.org/2000/svg';
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // --- forme du clou (coordonnées locales) ---
+  const nailPath='M-6 -22 Q-14 0 -6 22 L8 22 Q12 0 8 -22 Z M8 -8 L230 -8 L268 0 L230 8 L8 8 Z';
+  $('nailBody').setAttribute('d',nailPath);
+  $('nailShapeClip').setAttribute('d',nailPath);
+  $('oilSheen').setAttribute('d',nailPath);
+
+  // générateur pseudo-aléatoire stable
+  let seed=7; const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646;};
+
+  // taches de rouille, chacune avec un seuil d’apparition
+  const spots=[];
+  for(let i=0;i<90;i++){
+    const onHead=i<10;
+    const x=onHead? -4+rnd()*12 : 10+rnd()*245;
+    const y=onHead? -20+rnd()*40 : -9+rnd()*18;
+    const r=onHead? 3+rnd()*5 : 3+rnd()*7;
+    const nearScratch = !onHead && x>60 && x<190 && Math.abs(y-(-4+(x-60)*9/130))<5;
+    const c=document.createElementNS(NS,'ellipse');
+    c.setAttribute('cx',x.toFixed(1));c.setAttribute('cy',y.toFixed(1));
+    c.setAttribute('rx',r.toFixed(1));c.setAttribute('ry',(r*(.6+rnd()*.5)).toFixed(1));
+    const shade=['#B4501E','#9C4318','#C8682F','#7E3412'][Math.floor(rnd()*4)];
+    c.setAttribute('fill',shade);c.setAttribute('opacity','0');
+    $('rustSpots').appendChild(c);
+    spots.push({el:c,th:rnd()*.95,nearScratch});
+  }
+  // gouttes d’eau sur le clou
+  for(let i=0;i<12;i++){
+    const d=document.createElementNS(NS,'ellipse');
+    d.setAttribute('cx',(20+rnd()*220).toFixed(1));d.setAttribute('cy',(-10+rnd()*20).toFixed(1));
+    d.setAttribute('rx','4');d.setAttribute('ry','5');d.setAttribute('fill','#7DB8E0');d.setAttribute('stroke','#2E7DB5');
+    d.setAttribute('opacity','0');d.dataset.th=(i/12).toString();$('drops').appendChild(d);
+  }
+  // molécules d’oxygène
+  for(let i=0;i<16;i++){
+    const g=document.createElementNS(NS,'g');
+    const x=110+rnd()*200,y=110+rnd()*260;
+    g.setAttribute('transform',`translate(${x.toFixed(0)} ${y.toFixed(0)})`);
+    g.innerHTML='<circle cx="-4" cy="0" r="4.5" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.6"/><circle cx="4" cy="0" r="4.5" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.6"/>';
+    g.setAttribute('opacity','0');g.dataset.th=(i/16).toString();$('oxygen').appendChild(g);
+  }
+  // grains de sel
+  for(let i=0;i<40;i++){
+    const r=document.createElementNS(NS,'rect');
+    const x=100+rnd()*220,y=392+rnd()*16;
+    r.setAttribute('x',x.toFixed(1));r.setAttribute('y',y.toFixed(1));r.setAttribute('width','5');r.setAttribute('height','5');
+    r.setAttribute('transform',`rotate(${(rnd()*45).toFixed(0)} ${x.toFixed(0)} ${y.toFixed(0)})`);
+    r.setAttribute('fill','#FFFFFF');r.setAttribute('stroke','#9AA5AD');r.setAttribute('opacity','0');r.dataset.th=(i/40).toString();
+    $('saltLayer').appendChild(r);
+  }
+  // flocons de rouille tombés au fond
+  for(let i=0;i<24;i++){
+    const r=document.createElementNS(NS,'ellipse');
+    r.setAttribute('cx',(150+rnd()*150).toFixed(1));r.setAttribute('cy',(400+rnd()*10).toFixed(1));
+    r.setAttribute('rx',(2+rnd()*4).toFixed(1));r.setAttribute('ry','2');r.setAttribute('fill','#9C4318');
+    r.setAttribute('opacity','0');r.dataset.th=(i/24).toString();$('flakes').appendChild(r);
+  }
+  // poudre blanche sur le zinc
+  for(let i=0;i<10;i++){
+    const c=document.createElementNS(NS,'circle');
+    c.setAttribute('cx',(152+rnd()*40).toFixed(1));c.setAttribute('cy',(-18+rnd()*36).toFixed(1));c.setAttribute('r',(1.5+rnd()*2.5).toFixed(1));
+    c.setAttribute('fill','#F4F6F7');c.setAttribute('opacity','0');c.dataset.th=(i/10).toString();$('zincPowder').appendChild(c);
+  }
+
+  // --- modèle simplifié ---
+  const K=0.036; // vitesse de base par mois
+  function prot(){return document.querySelector('input[name=p]:checked').value;}
+  function baseRate(w,o,s,T,p){
+    let we=w/100, se=s/100;
+    if(p==='abri'){we=Math.min(we,.12);se*=.15;}
+    const gel=-15*se; let tf = T<gel ? 0.15 : Math.pow(2,(T-20)/15);
+    if(we<0.04||o<4) return 0;
+    return K*we*(o/100)*(1+4*se)*tf;
+  }
+  // intègre dans le temps (mois), renvoie {rust, zincLeft, oilLeft}
+  function simulate(tEnd,p,scratch,v){
+    const r0=baseRate(v.w,v.o,v.s,v.T,p);
+    let dose=0, zinc=1, dt=0.05;
+    for(let t=0;t<tEnd-1e-9;t+=dt){
+      const step=Math.min(dt,tEnd-t);
+      let f=1;
+      if(p==='paint') f=scratch?0.35:0.03;
+      else if(p==='oil') f=1-0.95*Math.exp(-(t)/3.5);
+      else if(p==='zinc'){ if(zinc>0){f=0.02; zinc-=r0*step*0.45;} else f=1; }
+      else if(p==='neg') f=0.01;
+      else if(p==='pos') f=6;
+      dose+=r0*f*step;
+    }
+    return {rust:1-Math.exp(-dose), zinc:Math.max(0,zinc), oil:p==='oil'?Math.exp(-tEnd/3.5):0, r0};
+  }
+  function vals(){return {w:+ui.w.value,o:+ui.o.value,s:+ui.s.value,T:+ui.T.value,t:+ui.t.value};}
+
+  const wLbl=w=>w<5?'très sec':w<30?'un peu humide':w<60?'humide (pluie)':w<85?'souvent mouillé':'plongé dans l’eau';
+  const oLbl=o=>o<5?'aucun':o<40?'peu d’air':o<80?'un peu d’air':'air libre';
+  const sLbl=s=>s<5?'aucun':s<35?'un peu':s<70?'beaucoup':'énormément';
+  const tLbl=t=>{if(t===0)return 'aujourd’hui';const m=Math.round(t*4)/4;if(m<1)return Math.round(m*30)+' jours';const y=Math.floor(m/12),mo=Math.round(m%12);return (y?y+(y>1?' ans':' an'):'')+(y&&mo?' et ':'')+(mo?mo+' mois':'');};
+
+  function render(){
+    const v=vals(), p=prot(), scratch=$('scratch').checked;
+    $('wOut').textContent=wLbl(v.w); $('oOut').textContent=oLbl(v.o); $('sOut').textContent=sLbl(v.s);
+    $('TOut').textContent=v.T+' °C'; $('tOut').textContent=tLbl(v.t);
+    $('scratchRow').hidden = p!=='paint';
+
+    const sim=simulate(v.t,p,scratch,v), R=sim.rust;
+    const pct=Math.round(R*100);
+    $('pct').textContent=pct+' %'; $('barFill').style.width=pct+'%';
+    $('pctLbl').textContent = v.t===0 ? 'de rouille : le clou est neuf' : pct===0 ? 'de rouille : le clou est encore brillant' : 'de la surface du clou est rouillée';
+
+    // équation
+    const we = p==='abri'?Math.min(v.w,12):v.w;
+    $('cEau').className='chip '+(we>=4?'on':'off');
+    $('cOxy').className='chip '+(v.o>=4?'on':'off');
+
+    // scène : eau
+    const lvl=Math.max(0,(v.w-60)/40); const h=lvl*300;
+    $('water').setAttribute('y',414-h);$('water').setAttribute('height',h);
+    $('drops').querySelectorAll('ellipse').forEach(d=>d.setAttribute('opacity', (v.w>=5&&v.w<=85&&+d.dataset.th< v.w/70)?'.9':'0'));
+    $('oxygen').querySelectorAll('g').forEach(g=>g.setAttribute('opacity', +g.dataset.th < v.o/100 ? '.85':'0'));
+    $('saltLayer').querySelectorAll('rect').forEach(r=>r.setAttribute('opacity', +r.dataset.th < v.s/100 ? '1':'0'));
+    $('lid').setAttribute('opacity', v.o<40?'1':'0');
+    // thermomètre
+    const mh=((v.T+15)/55)*180+10; $('mercury').setAttribute('y',200-mh);$('mercury').setAttribute('height',mh);
+    $('tempTxt').textContent=v.T+' °C';
+
+    // protections visuelles
+    $('nailBody').setAttribute('fill', p==='paint'?'url(#paintG)':'url(#steelG)');
+    $('scratchLine').setAttribute('opacity', p==='paint'&&scratch?'1':'0');
+    $('oilSheen').setAttribute('opacity', p==='oil'? (0.15+0.75*sim.oil).toFixed(2):'0');
+    $('zinc').setAttribute('opacity', p==='zinc'?'1':'0');
+    const zw=6+38*sim.zinc; $('zincRect').setAttribute('width',zw.toFixed(1)); $('zincRect').setAttribute('x',(172-zw/2).toFixed(1));
+    $('zincPowder').querySelectorAll('circle').forEach(c=>c.setAttribute('opacity', p==='zinc' && +c.dataset.th < (1-sim.zinc)*1.2 ? '1':'0'));
+    $('battery').setAttribute('opacity', (p==='neg'||p==='pos')?'1':'0');
+    $('batSign').textContent = p==='pos'?'+':'−';
+    $('bolt').setAttribute('opacity', p==='pos'?'1':'0');
+    $('shelter').setAttribute('opacity', p==='abri'?'1':'0');
+
+    // rouille sur le clou
+    const local = (p==='paint'&&scratch);
+    spots.forEach(sp=>{
+      let show;
+      if(p==='paint' && !scratch) show = R*0.5 > sp.th;
+      else if(local) show = sp.nearScratch ? R*3 > sp.th : R*0.25 > sp.th;
+      else show = R > sp.th;
+      sp.el.setAttribute('opacity', show ? '.92':'0');
+    });
+    $('rustTint').setAttribute('opacity', local||p==='paint' ? '0' : Math.max(0,(R-0.55)*1.4).toFixed(2));
+    $('flakes').querySelectorAll('ellipse').forEach(f=>f.setAttribute('opacity', R>0.5 && +f.dataset.th < (R-0.5)*2 ? '1':'0'));
+
+    messages(v,p,scratch,sim,R);
+    chart(v,p,scratch);
+  }
+
+  function messages(v,p,scratch,sim,R){
+    const m=[];
+    const we = p==='abri'?Math.min(v.w,12):v.w;
+    if(we<4) m.push('Sans eau, le fer ne peut pas rouiller : il reste brillant.');
+    if(v.o<4) m.push('Sans oxygène, pas de rouille. L’oxygène de l’air est nécessaire pour transformer le fer en rouille.');
+    if(we>=4&&v.o>=4){
+      m.push('Le fer, l’eau et l’oxygène sont réunis : la rouille peut se former. C’est une transformation chimique, car une nouvelle substance apparaît.');
+      if(v.s>=10) m.push('Le sel dissous dans l’eau en fait un électrolyte : les électrons circulent plus facilement et la rouille avance plus vite.');
+      const gel=-15*(p==='abri'?v.s*.15:v.s)/100;
+      if(v.T<gel) m.push('À cette température, l’eau gèle : la glace ralentit beaucoup la réaction.');
+      else if(v.T<0&&v.s>=10) m.push('Il fait sous 0 °C, mais le sel empêche l’eau de geler : elle reste liquide et la rouille continue.');
+      else if(v.T>=28) m.push('La chaleur accélère la réaction chimique.');
+      else if(v.T<=8) m.push('Le froid ralentit un peu la réaction.');
+    }
+    if(p==='paint') m.push(scratch?'La peinture bloque l’eau et l’air, mais là où elle est égratignée, le fer est exposé : la rouille commence par la rayure.':'La peinture forme une barrière : l’eau et l’oxygène ne touchent plus le fer.');
+    if(p==='oil') m.push(sim.oil>0.3?'L’huile repousse l’eau et protège le fer.':'L’huile s’est usée et a été lavée par l’eau : le fer n’est presque plus protégé. Il faudrait en remettre souvent.');
+    if(p==='zinc') m.push(sim.zinc>0?'Le zinc s’oxyde à la place du fer : il donne ses électrons et se sacrifie. Le bloc rapetisse et se couvre de poudre blanche.':'Le bloc de zinc est complètement usé : il faut le changer, sinon le fer recommence à rouiller.');
+    if(p==='neg') m.push('La borne − de la pile envoie des électrons au fer. Le fer n’a plus besoin de perdre les siens : il ne rouille presque pas.');
+    if(p==='pos') m.push('Attention, piège ! La borne + arrache des électrons au fer. Au lieu de le protéger, la pile le fait rouiller beaucoup plus vite.');
+    if(p==='abri') m.push('À l’abri, rincé et essuyé, le fer reste au sec et sans sel : la rouille ralentit énormément.');
+    if(v.t===0) m.unshift('Fais glisser le curseur du temps ou appuie sur « Faire passer le temps » pour voir ce qui arrive au clou.');
+    else if(R>0.85) m.push('Le clou est très rouillé : la rouille s’effrite et tombe, le métal devient plus mince et plus fragile.');
+    $('msgs').innerHTML=''; m.forEach(t=>{const li=document.createElement('li');li.textContent=t;$('msgs').appendChild(li);});
+  }
+
+  function chart(v,p,scratch){
+    const svg=$('chart'), W=360,H=190,L=38,B=26,T=10,Rr=10;
+    const x=t=>L+(t/36)*(W-L-Rr), y=r=>T+(1-r)*(H-T-B);
+    const css=getComputedStyle(document.documentElement);
+    let s=`<g font-family="IBM Plex Mono,ui-monospace,monospace" font-size="11" fill="${css.getPropertyValue('--muted')}">`;
+    [0,.5,1].forEach(r=>{s+=`<line x1="${L}" x2="${W-Rr}" y1="${y(r)}" y2="${y(r)}" stroke="${css.getPropertyValue('--hair')}"/>`;s+=`<text x="${L-6}" y="${y(r)+4}" text-anchor="end">${r*100} %</text>`;});
+    [0,12,24,36].forEach(t=>{s+=`<text x="${x(t)}" y="${H-8}" text-anchor="middle">${t===0?'0':t/12+' an'+(t>12?'s':'')}</text>`;});
+    s+='</g>';
+    const line=(pp,col,dash)=>{let d='';for(let t=0;t<=36;t+=0.5){const r=simulate(t,pp,scratch,v).rust;d+=(t?'L':'M')+x(t).toFixed(1)+' '+y(r).toFixed(1);}return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${dash?2:3}" ${dash?'stroke-dasharray="5 4"':''} stroke-linecap="round"/>`;};
+    if(p!=='none'){s+=line('none',css.getPropertyValue('--muted'),true);}
+    s+=line(p,css.getPropertyValue('--rust'),false);
+    const r=simulate(v.t,p,scratch,v).rust;
+    s+=`<line x1="${x(v.t)}" x2="${x(v.t)}" y1="${T}" y2="${H-B}" stroke="${css.getPropertyValue('--ink')}" stroke-width="1" stroke-dasharray="2 3"/>`;
+    s+=`<circle cx="${x(v.t)}" cy="${y(r)}" r="5" fill="${css.getPropertyValue('--rust')}" stroke="${css.getPropertyValue('--panel')}" stroke-width="2"/>`;
+    svg.innerHTML=s;
+    $('legGhost').hidden = p==='none';
+  }
+
+  // lecture du temps
+  let anim=null;
+  function playLabel(){return +ui.t.value>=36?'Revoir depuis le début':'Faire passer le temps';}
+  function stop(){if(anim){cancelAnimationFrame(anim);anim=null;}$('play').textContent=playLabel();}
+  $('play').addEventListener('click',()=>{
+    if(anim){stop();return;}
+    if(+ui.t.value>=36) ui.t.value=0;
+    if(reduce){ui.t.value=36;render();stop();return;}
+    $('play').textContent='Mettre en pause';
+    let last=performance.now();
+    const tick=now=>{const dt=(now-last)/1000;last=now;let t=+ui.t.value+dt*6; if(t>=36){t=36;ui.t.value=t;render();stop();return;} ui.t.value=t;render();anim=requestAnimationFrame(tick);};
+    anim=requestAnimationFrame(tick);
+  });
+
+  const scen={
+    velo:{w:55,o:100,s:85,T:-5},
+    mer:{w:100,o:100,s:70,T:15},
+    desert:{w:2,o:100,s:5,T:38},
+    bouillie:{w:100,o:0,s:0,T:20},
+    maison:{w:15,o:100,s:0,T:21}
+  };
+  document.querySelectorAll('[data-sc]').forEach(b=>b.addEventListener('click',()=>{
+    const c=scen[b.dataset.sc]; stop();
+    ui.w.value=c.w;ui.o.value=c.o;ui.s.value=c.s;ui.T.value=c.T;ui.t.value=0; render();
+  }));
+
+  Object.values(ui).forEach(i=>i.addEventListener('input',()=>{ render(); if(!anim) $('play').textContent=playLabel();}));
+  ui.t.addEventListener('pointerdown',stop);
+  document.querySelectorAll('input[name=p]').forEach(r=>r.addEventListener('change',render));
+  $('scratch').addEventListener('change',render);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+  render();
+})();
+</script>
+</body>
+</html>
